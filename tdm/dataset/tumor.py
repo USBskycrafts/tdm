@@ -72,4 +72,4 @@ class BraTS2021Dataset:
         source =  modalities[:, :, input_modalities]
         target = modalities[:, :, target_modalities]
         
-        return transform(source), target_modalities, transform(target),# sample.stem, slice_idx
+        return transform(source), input_modalities, transform(target),# sample.stem, slice_idx
