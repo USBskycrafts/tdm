@@ -34,9 +34,6 @@ def main():
     model = load_instance(config['model'])
     dataset = Dataset(config['dataset'])
 
-    if args.resume:
-        model = DDPM.load_from_checkpoint(args.resume, map_location='cpu')
-        print(f"Model loaded from checkpoint: {args.resume}")
 
     # create trainer
     trainer = Trainer(
@@ -47,8 +44,12 @@ def main():
     )
 
     if not args.test_only:
+        ckpt_path = None
+        if args.resume:
+            ckpt_path = args.resume 
         # train the model
-        trainer.fit(model, dataset)
+        trainer.fit(model, dataset, ckpt_path=ckpt_path)
+            
 
     # test the model
     trainer.test(model, dataset)

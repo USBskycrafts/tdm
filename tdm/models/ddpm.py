@@ -106,8 +106,6 @@ class DDPM(pl.LightningModule):
         loss = F.mse_loss(pred_noise, true_noise)
         self.log('val/loss', loss,
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        y = self._sample(x.shape, aim, cond)
-        return y
     
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
