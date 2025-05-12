@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from tdm.utils import load_instance
-
+import multiprocessing
 
 class Dataset(pl.LightningDataModule):
     def __init__(self,
@@ -22,7 +22,7 @@ class Dataset(pl.LightningDataModule):
                           shuffle=True,
                           pin_memory=True,
                           persistent_workers=True,
-                          num_workers=self.batch_size)
+                          num_workers=min(multiprocessing.cpu_count() * 3 // 4, self.batch_size))
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset,
@@ -30,7 +30,7 @@ class Dataset(pl.LightningDataModule):
                           shuffle=False,
                           pin_memory=True,
                           persistent_workers=True,
-                          num_workers=self.batch_size)
+                          num_workers=min(multiprocessing.cpu_count() * 3 // 4, self.batch_size))
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset,
@@ -38,4 +38,4 @@ class Dataset(pl.LightningDataModule):
                           shuffle=False,
                           pin_memory=True,
                           persistent_workers=True,
-                          num_workers=self.batch_size)
+                          num_workers=min(multiprocessing.cpu_count() * 3 // 4, self.batch_size))

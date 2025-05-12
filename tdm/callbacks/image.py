@@ -9,24 +9,48 @@ from torchvision.utils import make_grid
 
 
 class ImageLoggingCallback(Callback):
-    def __init__(self, log_every_n_steps=5):
+    def __init__(self, log_every_n_steps=5, log_every_n_epochs=1):
         self.log_every_n_steps = log_every_n_steps
-        
-                
-            
+        self.log_every_n_epochs = log_every_n_epochs
+
+    @rank_zero_only
+    @torch.no_grad()
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        if trainer.current_epoch % self.log_every_n_epochs == 0 and \
+                trainer.current_epoch > 0 and \
+                isinstance(trainer.logger, TensorBoardLogger):
+            tensorboard = trainer.logger.experiment
+            x, aim, cond = batch
+
+            if isinstance(outputs, torch.Tensor):
+                outputs = outputs.detach()
+            else:
+                if hasattr(pl_module, '_sample') and callable(pl_module._sample):
+                    outputs = pl_module._sample(x.shape, aim, cond).detach()
+                else:
+                    raise AttributeError("pl_module does not have a callable '_sample' method.")
+
+            outputs = make_grid(
+                outputs, nrow=8, normalize=True, scale_each=True)
+            tensorboard.add_image('val/generation', outputs, batch_idx)
+            x = make_grid(x, nrow=8, normalize=True, scale_each=True)
+            tensorboard.add_image('val/ground_truth', x, batch_idx)
+
     @rank_zero_only
     @torch.no_grad()
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         if trainer.global_step % self.log_every_n_steps == 0 and \
-            isinstance(trainer.logger, TensorBoardLogger):
-                tensorboard = trainer.logger.experiment
-                assert isinstance(outputs, torch.Tensor)
-                outputs = make_grid(outputs, nrow=8, normalize=True, scale_each=True)
-                tensorboard.add_image('val/generation', outputs, batch_idx)
-                x, *_ = batch
-                x = make_grid(x, nrow=8, normalize=True, scale_each=True)
-                tensorboard.add_image('val/ground_truth', x, batch_idx)
-                
+                isinstance(trainer.logger, TensorBoardLogger):
+            tensorboard = trainer.logger.experiment
+            assert isinstance(outputs, torch.Tensor)
+            outputs = make_grid(
+                outputs, nrow=8, normalize=True, scale_each=True)
+            tensorboard.add_image('val/generation', outputs, batch_idx)
+            x, *_ = batch
+            x = make_grid(x, nrow=8, normalize=True, scale_each=True)
+            tensorboard.add_image('val/ground_truth', x, batch_idx)
+
+
 class ImageMetricsCallback(Callback):
     def __init__(self, data_range=1.0, log_every_n_steps=5):
         self.log_every_n_steps = log_every_n_steps
@@ -39,24 +63,24 @@ class ImageMetricsCallback(Callback):
         self.lpips = LearnedPerceptualImagePatchSimilarity(
             net_type="alex",
         )
-            
+
     @torch.no_grad()
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         if trainer.global_step % self.log_every_n_steps == 0:
             x, aim, cond, *_ = batch
-            assert isinstance(outputs, torch.Tensor) 
+            assert isinstance(outputs, torch.Tensor)
             pl_module.log("test/psnr", self.psnr(outputs, x),
-                            prog_bar=False,logger=True, sync_dist=True)
+                          prog_bar=False, logger=True, sync_dist=True)
             pl_module.log("test/ssim", self.ssim(outputs, x),
                           prog_bar=False, logger=True, sync_dist=True)
             pl_module.log("test/lpips", self.lpips(outputs.repeat(1, 3, 1, 1), x.repeat(1, 3, 1, 1)),
-                            prog_bar=False, logger=True, sync_dist=True)
-            
+                          prog_bar=False, logger=True, sync_dist=True)
+
     def on_test_epoch_start(self, trainer, pl_module):
         self.psnr.reset()
-        self.ssim.reset() 
+        self.ssim.reset()
         self.lpips.reset()
-        
+
     def on_test_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         self.psnr.to(pl_module.device)
         self.ssim.to(pl_module.device)
